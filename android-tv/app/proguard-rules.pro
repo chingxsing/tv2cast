@@ -1,0 +1,1 @@
+-keep class com.tv2cast.app.data.model.** { *; }

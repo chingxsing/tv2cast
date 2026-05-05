@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_primary">#0A0A0F</color>
+    <color name="bg_secondary">#12121A</color>
+    <color name="bg_card">#14142080</color>
+    <color name="accent">#7C5CFF</color>
+    <color name="accent_light">#A78BFA</color>
+    <color name="text_primary">#F0F0F5</color>
+    <color name="text_secondary">#8888A0</color>
+    <color name="text_muted">#555568</color>
+    <color name="success">#34D399</color>
+
+    <string name="app_name">Tv2Cast</string>
+</resources>

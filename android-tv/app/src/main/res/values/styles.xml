@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Tv2Cast" parent="@style/Theme.Leanback">
+        <item name="android:windowBackground">@color/bg_primary</item>
+    </style>
+</resources>

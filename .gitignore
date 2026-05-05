@@ -1,0 +1,18 @@
+# Android build artifacts
+android-tv/build/
+android-tv/app/build/
+android-tv/local.properties
+android-tv/.idea/
+android-tv/.gradle/
+*.iml
+
+# Node.js
+server/node_modules/
+server/.env
+
+# OS
+.DS_Store
+**/.DS_Store
+
+# VS Code
+.vscode/

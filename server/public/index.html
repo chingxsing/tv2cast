@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tv2Cast — Local Video Streaming</title>
+  <meta name="description" content="Stream local video files to your phone, tablet, or TV">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+
+<body>
+
+  <!-- ──── Navbar ──── -->
+  <nav class="navbar" id="navbar">
+    <a href="/" class="navbar-brand">
+      <span class="logo">🎬</span>
+      <span>Tv2Cast</span>
+    </a>
+
+    <div class="search-container">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search videos..." autocomplete="off">
+    </div>
+
+    <div class="navbar-actions">
+      <a href="/download/tv2cast-android.apk" class="btn-app-download" download>
+        <span class="icon">📺</span> Get TV App
+      </a>
+      <span class="video-count" id="videoCount"></span>
+      <button class="btn-icon" id="btnRescan" title="Rescan directories">🔄</button>
+    </div>
+  </nav>
+
+  <!-- ──── Main Content ──── -->
+  <main class="main" id="mainContent">
+    <!-- Server Info (injected by JS) -->
+    <div id="serverInfo"></div>
+
+    <!-- Video Grid -->
+    <div id="videoContainer">
+      <div class="loading">
+        <div class="spinner"></div>
+        <span class="loading-text">Scanning video files...</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- ──── Video Player Modal ──── -->
+  <div class="player-overlay" id="playerOverlay">
+    <div class="player-header">
+      <span class="player-title" id="playerTitle">Video Title</span>
+      <div class="player-controls">
+        <button class="track-btn" id="btnCompatMode" title="Fix stuttering by transcoding to 720p">🚀 Fast
+          (Compat)</button>
+        <button class="track-btn" id="btnAudioTrack" title="Audio tracks">🔊 Audio</button>
+        <button class="track-btn" id="btnSubtitleTrack" title="Subtitles">💬 Subtitle</button>
+      </div>
+      <button class="btn-close" id="btnClosePlayer">✕</button>
+    </div>
+    <div class="player-wrapper">
+      <video id="videoPlayer" controls autoplay crossorigin="anonymous" controlsList="nodownload"
+        preload="metadata"></video>
+    </div>
+  </div>
+
+  <!-- ──── Track Selection Modal (separate from player for reliable clicks) ──── -->
+  <div class="track-modal-overlay" id="trackModal">
+    <div class="track-modal">
+      <div class="track-modal-header">
+        <span class="track-modal-title" id="trackModalTitle">Select Track</span>
+        <button class="btn-close" id="btnCloseTrackModal">✕</button>
+      </div>
+      <div class="track-modal-body" id="trackModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ──── Toast Container ──── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/app.js"></script>
+</body>
+
+</html>
