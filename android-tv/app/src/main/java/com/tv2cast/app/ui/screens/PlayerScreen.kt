@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +35,8 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -66,6 +70,8 @@ fun PlayerScreen(
     val context = LocalContext.current
     var showTrackMenu by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(true) }
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
 
     val exoPlayer = remember(streamUrl) {
         ExoPlayer.Builder(context).build().apply {
@@ -97,18 +103,14 @@ fun PlayerScreen(
     var isPlaying by remember { mutableStateOf(exoPlayer.isPlaying) }
     var playbackState by remember { mutableStateOf(exoPlayer.playbackState) }
     var playerError by remember { mutableStateOf<PlaybackException?>(null) }
+    var exoTracks by remember { mutableStateOf(Tracks.EMPTY) }
 
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) {
-                isPlaying = playing
-            }
-            override fun onPlaybackStateChanged(state: Int) {
-                playbackState = state
-            }
-            override fun onPlayerError(error: PlaybackException) {
-                playerError = error
-            }
+            override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
+            override fun onPlaybackStateChanged(state: Int) { playbackState = state }
+            override fun onPlayerError(error: PlaybackException) { playerError = error }
+            override fun onTracksChanged(tracks: Tracks) { exoTracks = tracks }
         }
         exoPlayer.addListener(listener)
         onDispose { exoPlayer.removeListener(listener) }
@@ -138,6 +140,15 @@ fun PlayerScreen(
         playerBoxRequester.requestFocus()
     }
 
+    // Poll playback position every 500ms
+    LaunchedEffect(Unit) {
+        while (true) {
+            position = exoPlayer.currentPosition
+            duration = exoPlayer.duration.coerceAtLeast(0L)
+            delay(500L)
+        }
+    }
+
     LaunchedEffect(showControls, showTrackMenu) {
         if (showControls && !showTrackMenu) {
             delay(5000L)
@@ -148,22 +159,43 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(selectedAudioIndex, selectedSubtitleIndex) {
-        val parametersBuilder = exoPlayer.trackSelectionParameters.buildUpon()
+    LaunchedEffect(selectedAudioIndex, selectedSubtitleIndex, exoTracks) {
+        val builder = exoPlayer.trackSelectionParameters.buildUpon()
+
+        // Audio selection by language (usually works since audio tracks have distinct languages)
         if (selectedAudioIndex >= 0 && selectedAudioIndex < audioTracks.size) {
-            val track = audioTracks[selectedAudioIndex]
-            parametersBuilder.setPreferredAudioLanguage(track.language)
+            builder.setPreferredAudioLanguage(audioTracks[selectedAudioIndex].language)
         }
+
+        // Subtitle: use TrackSelectionOverride to select by group index, not language
+        // This works even when multiple tracks have language "und"
+        builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
         if (selectedSubtitleIndex == -1) {
-            parametersBuilder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-            parametersBuilder.setPreferredTextLanguage(null)
-            parametersBuilder.setSelectUndeterminedTextLanguage(false)
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
         } else if (selectedSubtitleIndex < subtitleTracks.size) {
-            val track = subtitleTracks[selectedSubtitleIndex]
-            parametersBuilder.setPreferredTextLanguage(track.language)
-            parametersBuilder.setSelectUndeterminedTextLanguage(true)
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            // Map selectedSubtitleIndex → ExoPlayer text track group by counting
+            var textGroupIdx = 0
+            var targetGroup: androidx.media3.common.TrackGroup? = null
+            for (group in exoTracks.groups) {
+                if (group.type == C.TRACK_TYPE_TEXT) {
+                    if (textGroupIdx == selectedSubtitleIndex) {
+                        targetGroup = group.mediaTrackGroup
+                        break
+                    }
+                    textGroupIdx++
+                }
+            }
+            if (targetGroup != null) {
+                builder.addOverride(TrackSelectionOverride(targetGroup, 0))
+            } else {
+                // Fallback when tracks not yet loaded: prefer by language
+                builder.setPreferredTextLanguage(subtitleTracks[selectedSubtitleIndex].language)
+                builder.setSelectUndeterminedTextLanguage(true)
+            }
         }
-        exoPlayer.trackSelectionParameters = parametersBuilder.build()
+
+        exoPlayer.trackSelectionParameters = builder.build()
     }
 
     DisposableEffect(streamUrl) {
@@ -178,6 +210,34 @@ fun PlayerScreen(
             .background(Color.Black)
             .focusRequester(playerBoxRequester)
             .focusable()
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            val newPos = (exoPlayer.currentPosition - 30_000L).coerceAtLeast(0L)
+                            exoPlayer.seekTo(newPos)
+                            showControls = true
+                            true
+                        }
+                        Key.DirectionRight -> {
+                            val dur = exoPlayer.duration.coerceAtLeast(0L)
+                            val newPos = (exoPlayer.currentPosition + 30_000L).coerceAtMost(if (dur > 0) dur else Long.MAX_VALUE)
+                            exoPlayer.seekTo(newPos)
+                            showControls = true
+                            true
+                        }
+                        Key.DirectionCenter, Key.Enter -> {
+                            togglePlayPause()
+                            true
+                        }
+                        Key.Back -> {
+                            onBack()
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -313,6 +373,65 @@ fun PlayerScreen(
                 }
             }
 
+            // Bottom seek bar
+            AnimatedVisibility(
+                visible = showControls && !showTrackMenu,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color(0xCC000000))
+                            )
+                        )
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = formatTime(position),
+                                color = Color.White,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = "◀ ▶  ±30s",
+                                color = Color.White.copy(alpha = 0.45f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = formatTime(duration),
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 13.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Progress bar
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .background(Color.White.copy(alpha = 0.25f), RoundedCornerShape(2.dp))
+                        ) {
+                            if (duration > 0L) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = (position.toFloat() / duration).coerceIn(0f, 1f))
+                                        .fillMaxHeight()
+                                        .background(Accent, RoundedCornerShape(2.dp))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (showTrackMenu) {
                 Box(
                     modifier = Modifier
@@ -400,6 +519,15 @@ fun PlayerScreen(
             }
         }
     }
+}
+
+private fun formatTime(ms: Long): String {
+    if (ms <= 0L) return "0:00"
+    val totalSec = ms / 1000
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)

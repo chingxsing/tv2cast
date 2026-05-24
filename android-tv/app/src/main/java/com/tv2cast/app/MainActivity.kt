@@ -99,7 +99,8 @@ fun Tv2CastApp(viewModel: MainViewModel = viewModel()) {
                 serverUrl = serverUrl,
                 onVideoClick = { video -> viewModel.playVideo(video) },
                 onRescan = { viewModel.rescan() },
-                onDisconnect = { viewModel.disconnect() }
+                onDisconnect = { viewModel.disconnect() },
+                onSearch = { viewModel.searchVideos(it) }
             )
         }
         

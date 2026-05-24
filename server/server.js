@@ -112,29 +112,32 @@ app.get('/api/videos/:id/compat-stream', (req, res) => {
     const filePath = video.path;
     const { spawn } = require('child_process');
 
-    console.log(`🚀 Transcoding: ${video.name} (Compatibility Mode)`);
+    // ?q=480 for 480p on very slow TVs, default 720p
+    const width = req.query.q === '480' ? '854' : '1280';
+    console.log(`🚀 Transcoding: ${video.name} → ${width}p H.264`);
 
-    // FFmpeg command for real-time 720p H.264 transcoding
-    // Includes HDR-to-SDR tone mapping for better compatibility with non-HDR displays
-    // Using a filter chain that works with standard FFmpeg (no zscale required)
     const ffmpeg = spawn('ffmpeg', [
-        '-i', filePath,                             // Input file
-        '-vf', 'format=p010,tonemap=hable,format=yuv420p,scale=1280:-2', // HDR to SDR + Scale
-        '-c:v', 'libx264',                          // Video codec: H.264
-        '-preset', 'ultrafast',                     // Minimum CPU usage, fastest speed
-        '-crf', '23',                               // Constant Rate Factor (good balance)
-        '-maxrate', '4000k',                        // Max bitrate
-        '-bufsize', '8000k',                        // Buffer size
-        '-c:a', 'aac',                              // Audio codec: AAC
-        '-ac', '2',                                 // Channels: Stereo
-        '-b:a', '192k',                             // Audio bitrate
-        '-f', 'matroska',                           // Container: MKV (robust for streaming)
-        'pipe:1'                                    // Output to stdout
+        '-i', filePath,
+        '-vf', `scale=${width}:-2:flags=lanczos`,   // scale to target width, keep aspect
+        '-pix_fmt', 'yuv420p',                       // force 8-bit — works for both SDR & HDR
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-crf', '23',
+        '-maxrate', '4000k',
+        '-bufsize', '8000k',
+        '-c:a', 'aac',
+        '-ac', '2',
+        '-b:a', '192k',
+        '-movflags', 'frag_keyframe+empty_moov+default_base_moof', // fragmented MP4 for streaming
+        '-f', 'mp4',
+        'pipe:1'
     ]);
 
     res.writeHead(200, {
-        'Content-Type': 'video/x-matroska',
-        'Transfer-Encoding': 'chunked'
+        'Content-Type': 'video/mp4',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache'
     });
 
     ffmpeg.stdout.pipe(res);

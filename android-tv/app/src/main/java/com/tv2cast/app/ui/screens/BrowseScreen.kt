@@ -7,11 +7,15 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,8 +32,10 @@ fun BrowseScreen(
     serverUrl: String,
     onVideoClick: (Video) -> Unit,
     onRescan: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onSearch: (String) -> Unit = {}
 ) {
+    var searchQuery by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -117,8 +123,54 @@ fun BrowseScreen(
             )
         }
         
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Search bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(BgCard)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🔍", fontSize = 16.sp, modifier = Modifier.padding(end = 10.dp))
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = { q ->
+                    searchQuery = q
+                    onSearch(q)
+                },
+                singleLine = true,
+                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
+                cursorBrush = SolidColor(Accent),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    if (searchQuery.isEmpty()) {
+                        Text("Search videos...", color = TextMuted, fontSize = 15.sp)
+                    }
+                    inner()
+                }
+            )
+            if (searchQuery.isNotEmpty()) {
+                Text(
+                    text = "✕",
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            searchQuery = ""
+                            onSearch("")
+                        }
+                        .padding(4.dp)
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         // Video grid
         if (videos.isEmpty()) {
             // Empty state
